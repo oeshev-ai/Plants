@@ -1,0 +1,14 @@
+# Bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Local env and secrets
+.env
+.venv/
+venv/
+env/
+
+# Generated at runtime (always rebuilt from database._seed_rows())
+plants.db
