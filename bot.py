@@ -1,5 +1,3 @@
-"""Telegram bot: indoor plant care tips (pyTelegramBotAPI + SQLite)."""
-
 from __future__ import annotations
 
 import logging
@@ -9,12 +7,12 @@ import telebot
 from telebot import types
 
 from config import BOT_TOKEN, CHANNEL_USERNAME
-from database import Plant, find_plant, init_db
+from database import Plant, find_plant, init_db, list_plant_names
 
 WELCOME = (
     "Привет! 🌿 Я помогу тебе ухаживать за комнатными растениями. "
     "Просто введи название растения — например: Монстера, Фикус или Сансевиерия — "
-    "и я пришлю рекомендации по уходу. "
+    "и я пришлю рекомендации по уходу.\n"
     "Подпишись на наш Telegram-канал, чтобы получать советы каждый день: "
     f"@{CHANNEL_USERNAME}"
 )
@@ -23,6 +21,8 @@ NOT_FOUND = (
     "Прости, я понимаю только названия растений на русском 🌿 "
     "Попробуй, например: Монстера, Сансевиерия или Замиокулькас."
 )
+
+LIST_HEADER = "🌿 Растения в базе:\n\n"
 
 
 def format_plant_card(plant: Plant) -> str:
@@ -52,6 +52,15 @@ def main() -> None:
     @bot.message_handler(commands=["start"])
     def on_start(message: types.Message) -> None:
         bot.reply_to(message, WELCOME)
+
+    @bot.message_handler(commands=["list"])
+    def on_list(message: types.Message) -> None:
+        names = list_plant_names()
+        if not names:
+            bot.reply_to(message, "В базе пока нет растений.")
+            return
+        body = "\n".join(f"• {n}" for n in names)
+        bot.reply_to(message, LIST_HEADER + body)
 
     @bot.message_handler(content_types=["text"])
     def on_text(message: types.Message) -> None:

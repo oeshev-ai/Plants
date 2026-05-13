@@ -1,4 +1,4 @@
-"""SQLite storage and plant lookup (case-insensitive, partial names)."""
+"""Хранение в SQLite и поиск растений (без учёта регистра, частичное совпадение имени)."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def init_db() -> None:
             )
             """
         )
-        # Full re-seed so edits to _seed_rows() always apply (no stale rows).
+        # Полная перезапись данных: изменения в _seed_rows() всегда попадают в БД (без устаревших строк).
         conn.execute("DELETE FROM plants")
         conn.executemany(
             """
@@ -57,13 +57,12 @@ def init_db() -> None:
 
 
 def find_plant(user_text: str) -> Plant | None:
-    q = (user_text or "").strip()
-    if not q:
+    ql = (user_text or "").strip().lower()
+    if not ql:
         return None
-    ql = q.lower()
 
     with _connect() as conn:
-        # 1) exact case-insensitive
+        # 1) точное совпадение без учёта регистра
         row = conn.execute(
             "SELECT name, light, water, temperature, repot FROM plants WHERE py_lower(name) = ?",
             (ql,),
@@ -71,8 +70,8 @@ def find_plant(user_text: str) -> Plant | None:
         if row:
             return Plant(**dict(row))
 
-        # 2) name starts with query (e.g. "монстера" -> "Монстера делициоза")
-        rows = conn.execute(
+        # 2) имя начинается с запроса (например, «монстера» → «Монстера делициоза»)
+        row = conn.execute(
             """
             SELECT name, light, water, temperature, repot
             FROM plants
@@ -80,19 +79,17 @@ def find_plant(user_text: str) -> Plant | None:
             ORDER BY length(name) ASC, name ASC
             """,
             (ql,),
-        ).fetchall()
-        if rows:
-            r = rows[0]
-            return Plant(**dict(r))
+        ).fetchone()
+        if row:
+            return Plant(**dict(row))
 
-        # 3) contains (e.g. "потос" -> "Эпипремнум (Потос)")
+        # 3) подстрока в имени (например, «потос» → «Эпипремнум (Потос)»)
         row = conn.execute(
             """
             SELECT name, light, water, temperature, repot
             FROM plants
             WHERE py_lower(name) LIKE '%' || ? || '%'
             ORDER BY length(name) ASC, name ASC
-            LIMIT 1
             """,
             (ql,),
         ).fetchone()
@@ -102,8 +99,15 @@ def find_plant(user_text: str) -> Plant | None:
     return None
 
 
+def list_plant_names() -> list[str]:
+    """Все названия растений из базы, отсортированные по алфавиту (порядок Unicode)."""
+    with _connect() as conn:
+        rows = conn.execute("SELECT name FROM plants ORDER BY name").fetchall()
+        return [str(row["name"]) for row in rows]
+
+
 def _seed_rows() -> list[tuple[str, str, str, str, str]]:
-    """Care data from project source list."""
+    """Данные по уходу из исходного списка проекта."""
     return [
         (
             "Сансевиерия",
@@ -456,9 +460,3 @@ def _seed_rows() -> list[tuple[str, str, str, str, str]]:
             "Раз в 2–3 года",
         ),
     ]
-
-
-def reset_db_file() -> None:
-    """Remove DB file (for tests / re-seed)."""
-    if DB_PATH.exists():
-        os.remove(DB_PATH)
